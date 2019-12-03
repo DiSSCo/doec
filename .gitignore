@@ -1,0 +1,44 @@
+# Compiled source files
+*.com
+*.class
+*.dll
+*.exe
+*.o
+*.so
+
+# Package files
+*.jar
+*.war
+*.ear
+*.zip
+*.tar.gz
+*.rar
+
+#Temp files
+*~
+~*
+
+# OS generated files
+.DS_Store*
+ehthumbs.db
+Icon?
+Thumbs.db
+.tmp
+.metadata
+.settings
+target
+target/*
+**/target
+RemoteSystemsTempFiles
+
+# Log files
+*.log
+
+#Configuration files
+config.properties
+
+#Idea files
+.idea
+*.iml
+nbProject
+.project
