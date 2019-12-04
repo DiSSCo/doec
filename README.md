@@ -71,7 +71,7 @@ the doip call should look like:
   "authentication": { "username": "YOUR_USERNAME", "password": "YOUR_PASSWORD" },
   "input": {
     "eventTypeId":"prov.994/46b7c3b13faa76b5af0f",
-    "agentId":"20.5000.1025/c4942d87a9f89d8929c1",
+    "agentId":"20.5000.1025/d298a8c18cb62ee602b8",
     "roleId":"20.5000.1025/808d7dca8a74d84af27a",
     "timestamp": "1575291173882",
     "description":"Specimen deposit in museum for exhibition",
@@ -120,7 +120,7 @@ function getProvenanceRecords(object, context) {
    var DigitalObjectEventController = Java.type("eu.dissco.doec.DigitalObjectEventController");
    var doec = new DigitalObjectEventController();
    var provenanceRecords = doec.getProvenanceRecordsForObject(object.id);
-   object.provenanceRecords=provenanceRecords;
+   object.provenanceRecords=JSON.parse(provenanceRecords);
    return object;    
 }
 </code></pre>
