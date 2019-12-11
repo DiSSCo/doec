@@ -65,6 +65,7 @@ function beforeDelete(object, context) {
 Function to process a custom event over a digital object
 For example, to process the event DepositInMuseum for the Digital Specimen 20.5000.1025/c4942d87a9f89d8929c1
 the doip call should look like:
+Note: For setting the timestamp you can use https://www.epochconverter.com/
 {
   "targetId": "20.5000.1025/c4942d87a9f89d8929c1",
   "operationId": "processEvent",
@@ -124,3 +125,41 @@ function getProvenanceRecords(object, context) {
    return object;    
 }
 </code></pre>
+
+
+### 1.4 Configure the ACL for desired CORDRA's schema to allow calls to instance methods
+<pre><code>
+    "DigitalSpecimen": {
+      "defaultAclRead": [
+        "public"
+      ],
+      "defaultAclWrite": [
+        "creator"
+      ],
+      "aclCreate": [
+        "authenticated"
+      ],
+      "aclMethods": {
+        "instance": {
+          "processEvent": [
+            "writers"
+          ],
+          "getVersionAtGivenTime": [
+            "public"
+          ],
+          "getProvenanceRecords": [
+            "public"
+          ]
+        },
+        "default": {
+          "instance": [
+            "writers"
+          ]
+        }
+      }
+    }
+</code></pre>
+
+
+### Funding
+This code was created to demonstrate how to process events done over digital objects, as part of the ICEDIG project https://icedig.eu/ ICEDIG a DiSSCo Project H2020-INFRADEV-2016-2017 – Grant Agreement No. 777483 Funded by the Horizon 2020 Framework Programme of the European Union
