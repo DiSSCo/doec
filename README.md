@@ -65,7 +65,6 @@ function beforeDelete(object, context) {
 Function to process a custom event over a digital object
 For example, to process the event DepositInMuseum for the Digital Specimen 20.5000.1025/c4942d87a9f89d8929c1
 the doip call should look like:
-Note: For setting the timestamp you can use https://www.epochconverter.com/
 {
   "targetId": "20.5000.1025/c4942d87a9f89d8929c1",
   "operationId": "processEvent",
@@ -74,7 +73,7 @@ Note: For setting the timestamp you can use https://www.epochconverter.com/
     "eventTypeId":"prov.994/46b7c3b13faa76b5af0f",
     "agentId":"20.5000.1025/d298a8c18cb62ee602b8",
     "roleId":"20.5000.1025/808d7dca8a74d84af27a",
-    "timestamp": "1575291173882",
+    "timestamp": "2019-12-02T18:42:59.361Z",
     "description":"Specimen deposit in museum for exhibition",
     "data":{
         "museumId":"20.5000.1025/2fd4b4e4525def2122bb"
@@ -96,13 +95,13 @@ function processEvent(object, context) {
 /*
 Function that get the version of a digital object at a given time
 For example, to get the version of the Digital Specimen 20.5000.1025/c4942d87a9f89d8929c1
-at 2019-12-02T18:42:59.361Z[Europe/London] the doip call should look like:
+at 2019-12-02T18:42:59.361Z the doip call should look like:
 {
   "targetId": "20.5000.1025/c4942d87a9f89d8929c1",
   "operationId": "getVersionAtGivenTime",
   "authentication": { "username": "YOUR_USERNAME", "password": "YOUR_PASSWORD" },
   "input": {
-    "timestamp": "1575312179361"
+    "timestamp": "2019-12-02T18:42:59.361Z"
   }
 }
 #

@@ -74,7 +74,7 @@ public class DigitalObjectEventController {
                     provenanceContent.addProperty("entityId", digitalObjectFound.id);
                     provenanceContent.addProperty("agentId", context.get("userId").getAsString());
                     provenanceContent.addProperty("roleId", "20.5000.1025/808d7dca8a74d84af27a");
-                    provenanceContent.addProperty("timestamp", digitalObjectFound.attributes.getAsJsonObject("metadata").get("createdOn").getAsLong());
+                    provenanceContent.addProperty("timestamp",  Instant.ofEpochMilli(digitalObjectFound.attributes.getAsJsonObject("metadata").get("createdOn").getAsLong()).toString());
                     provenanceContent.addProperty("description", "Digital object created");
                     provenanceContent.addProperty("revisionId", revisionId);
                     provenanceRecord.setAttribute("content", provenanceContent);
@@ -129,7 +129,7 @@ public class DigitalObjectEventController {
                     provenanceContent.addProperty("entityId", digitalObjectFound.id);
                     provenanceContent.addProperty("agentId", context.get("userId").getAsString());
                     provenanceContent.addProperty("roleId", "20.5000.1025/808d7dca8a74d84af27a");
-                    provenanceContent.addProperty("timestamp", digitalObjectFound.attributes.getAsJsonObject("metadata").get("modifiedOn").getAsLong());
+                    provenanceContent.addProperty("timestamp",  Instant.ofEpochMilli(digitalObjectFound.attributes.getAsJsonObject("metadata").get("modifiedOn").getAsLong()).toString());
                     provenanceContent.addProperty("description","Digital object updated");
                     provenanceContent.addProperty("revisionId", revisionId);
                     provenanceContent.add("data",extraAttributes);
@@ -169,7 +169,7 @@ public class DigitalObjectEventController {
                     provenanceContent.addProperty("entityId",context.get("objectId").getAsString());
                     provenanceContent.addProperty("agentId",context.get("userId").getAsString());
                     provenanceContent.addProperty("roleId","20.5000.1025/808d7dca8a74d84af27a");
-                    provenanceContent.addProperty("timestamp",deleteTimestamp);
+                    provenanceContent.addProperty("timestamp",  Instant.ofEpochMilli(deleteTimestamp).toString());
                     provenanceContent.addProperty("description","Digital object deleted");
                     provenanceRecord.setAttribute("content", provenanceContent);
                     DigitalObject provRecordSaved = provenanceRepositoryClient.create(provenanceRecord);
@@ -194,7 +194,7 @@ public class DigitalObjectEventController {
             provenanceContent.addProperty("entityId",context.get("objectId").getAsString());
             provenanceContent.addProperty("agentId",context.get("userId").getAsString());
             provenanceContent.addProperty("roleId","20.5000.1025/808d7dca8a74d84af27a");
-            provenanceContent.addProperty("timestamp",LocalDateTime.now().atZone(ZoneId.systemDefault()).withZoneSameInstant(ZoneId.of("UTC")).toString());
+            provenanceContent.addProperty("timestamp",Instant.now().toString());
             provenanceContent.addProperty("description","Digital object retrieved");
             provenanceRecord.setAttribute("content", provenanceContent);
             DigitalObject provRecordSaved = provenanceRepositoryClient.create(provenanceRecord);
@@ -224,7 +224,7 @@ public class DigitalObjectEventController {
                 provenanceContent.addProperty("eventTypeId",eventType.id);
                 provenanceContent.addProperty("entityId",entity.id);
                 provenanceContent.addProperty("agentId",agent.id);
-                provenanceContent.addProperty("timestamp",jsonEvent.get("timestamp").getAsLong());
+                provenanceContent.addProperty("timestamp",jsonEvent.get("timestamp").getAsString());
                 if (jsonEvent.has("roleName") && StringUtils.isNotBlank(jsonEvent.get("roleName").getAsString())){
                     DigitalObject role = digitalObjectRepositoryClient.retrieve(jsonEvent.get("roleId").getAsString());
                     if (role!=null){
@@ -254,17 +254,16 @@ public class DigitalObjectEventController {
         }
     }
 
-    public DigitalObject getVersionOfObjectAtGivenTime(String objectId, long timestamp) throws DigitalObjectRepositoryException {
+    public DigitalObject getVersionOfObjectAtGivenTime(String objectId, String utcIsoDatetime) throws DigitalObjectRepositoryException {
         DigitalObjectRepositoryInfo digitalObjectRepositoryInfo = DigitalObjectRepositoryInfo.getDigitalObjectRepositoryInfoFromConfig(this.getConfig());
         try (DigitalObjectRepositoryClient digitalObjectRepositoryClient = new DigitalObjectRepositoryClient(digitalObjectRepositoryInfo)) {
-            DigitalObject version = digitalObjectRepositoryClient.getVersionOfObjectAtGivenTime(objectId,timestamp);
+            DigitalObject version = digitalObjectRepositoryClient.getVersionOfObjectAtGivenTime(objectId,utcIsoDatetime);
             if (version!=null){
                 version.id = objectId;
             }
             return version;
         }
     }
-
 
     public String getProvenanceRecordsForObject(String objectId) throws DigitalObjectRepositoryException {
         DigitalObjectRepositoryInfo provenanceRepositoryInfo =  DigitalObjectRepositoryInfo.getProvenanceRepositoryInfoFromConfig(this.getConfig());

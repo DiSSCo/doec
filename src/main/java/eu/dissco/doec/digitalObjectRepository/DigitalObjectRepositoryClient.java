@@ -15,6 +15,7 @@ import net.dona.doip.client.transport.DoipClientResponse;
 import org.apache.commons.lang3.StringUtils;
 
 import java.io.InputStream;
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
@@ -142,6 +143,23 @@ public class DigitalObjectRepositoryClient implements AutoCloseable {
         }
         Long datetimeEpoch = zonedDateTime.toInstant().toEpochMilli();
         return this.getVersionOfObjectAtGivenTime(objectId,datetimeEpoch);
+    }
+
+    /**
+     * Function that get the object as it was the the time specified
+     * @param objectId
+     * @param utcDatetime string of utc time in ISO 8601
+     * @return Version of the object at the given time
+     * @throws DigitalObjectRepositoryException
+     */
+    public DigitalObject getVersionOfObjectAtGivenTime(String objectId, String utcDatetime) throws DigitalObjectRepositoryException {
+        Long timestamp;
+        if (StringUtils.isNotBlank(utcDatetime)){
+            timestamp = Instant.parse(utcDatetime).toEpochMilli();
+        } else{
+            timestamp = Instant.now().toEpochMilli();
+        }
+        return this.getVersionOfObjectAtGivenTime(objectId,timestamp);
     }
 
 
