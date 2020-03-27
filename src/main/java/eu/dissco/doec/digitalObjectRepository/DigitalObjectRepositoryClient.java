@@ -246,6 +246,15 @@ public class DigitalObjectRepositoryClient implements AutoCloseable {
         return searchAll(query,0,this.getDigitalObjectRepositoryInfo().getPageSize());
     }
 
+    public DigitalObject searchOne(String query) throws DigitalObjectRepositoryException{
+        List<DigitalObject> searchResults = this.searchAll(query);
+        if (searchResults.size()==1) {
+            return searchResults.get(0);
+        } else {
+            return null;
+        }
+    }
+
     /***
      * Function to call the hello operation of the repository
      * @return Digital object with the hello response from the repository
