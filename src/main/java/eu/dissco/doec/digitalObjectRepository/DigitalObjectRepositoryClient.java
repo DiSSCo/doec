@@ -181,7 +181,11 @@ public class DigitalObjectRepositoryClient implements AutoCloseable {
                 versions.sort(Comparator.comparing(v -> v.publishedOn, Comparator.nullsLast(Long::compareTo)));
                 int versionPos=-1;
                 for (VersionInfo version:versions) {
-                    if (version.publishedOn!=null && version.publishedOn>datetimeEpoch){
+                    if (version.publishedOn==null){
+                        version.publishedOn = Instant.now().toEpochMilli();
+                    }
+
+                    if (version.publishedOn>datetimeEpoch){
                         break;
                     } else{
                         versionPos++;

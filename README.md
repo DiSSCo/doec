@@ -30,9 +30,11 @@ exports.onObjectResolution = onObjectResolution;
 exports.beforeDelete = beforeDelete;
 
 exports.methods = {};
-exports.methods.processEvent = processEvent;
 exports.methods.getVersionAtGivenTime = getVersionAtGivenTime;
+exports.methods.publishVersion = publishVersion;
 exports.methods.getProvenanceRecords = getProvenanceRecords;
+exports.methods.getObjectAtGivenTime = getObjectAtGivenTime;
+exports.methods.processEvent = processEvent;
 
 
 function getDigitalObjectEventController(){
@@ -74,10 +76,10 @@ function beforeDelete(object, context) {
 
 /*
 Function to process a custom event over a digital object
-For example, to process the event DepositInMuseum for the Digital Specimen 20.5000.1025/c4942d87a9f89d8929c1
+For example, to process the event DepositInMuseum for the Digital Specimen 20.5000.1025/testDS
 the doip call should look like:
 {
-  "targetId": "20.5000.1025/c4942d87a9f89d8929c1",
+  "targetId": "20.5000.1025/testDS",
   "operationId": "processEvent",
   "authentication": { "username": "YOUR_USERNAME", "password": "YOUR_PASSWORD" },
   "input": {
@@ -103,11 +105,11 @@ function processEvent(object, context) {
 
 
 /*
-Function that get the version of a digital object at a given time
-For example, to get the version of the Digital Specimen 20.5000.1025/c4942d87a9f89d8929c1
+Function that get the published version of a digital object at a given time
+For example, to get the version of the Digital Specimen 20.5000.1025/testDS
 at 2019-12-02T18:42:59.361Z the doip call should look like:
 {
-  "targetId": "20.5000.1025/c4942d87a9f89d8929c1",
+  "targetId": "20.5000.1025/testDS",
   "operationId": "getVersionAtGivenTime",
   "authentication": { "username": "YOUR_USERNAME", "password": "YOUR_PASSWORD" },
   "input": {
@@ -125,12 +127,63 @@ function getVersionAtGivenTime(object, context) {
 }    
 
 
+/*
+Function that recreates the the digital object at a given time by lookig at the provenance record
+For example, to get the Digital Specimen 20.5000.1025/testDS 
+at 2019-12-02T18:42:59.361Z the doip call should look like:
+{
+  "targetId": "20.5000.1025/testDS",
+  "operationId": "getObjectAtGivenTime",
+  "authentication": { "username": "YOUR_USERNAME", "password": "YOUR_PASSWORD" },
+  "input": {
+    "timestamp": "2019-12-02T18:42:59.361Z"
+  }
+}
+#
+#
+*/
+function getObjectAtGivenTime(object, context) {   
+   var doec = getDigitalObjectEventController();
+   var timestamp = context.params.timestamp;
+   var version = doec.getObjectAtGivenTime(object.id,timestamp);
+   return version;    
+}  
+
+/*
+Function that gets the list of provenance records of a given object
+For example, to get provenance records for the Digital Specimen 20.5000.1025/testDS, the doip call should look like:
+{
+  "targetId": "20.5000.1025/testDS",
+  "operationId": "getProvenanceRecords",
+  "authentication": { "username": "francisco", "password": "fran1234" }
+}
+#
+#
+*/
 function getProvenanceRecords(object, context) {
    var doec = getDigitalObjectEventController();
    var provenanceRecords = doec.getProvenanceRecordsForObject(object.id);
    object.provenanceRecords=JSON.parse(provenanceRecords);
    return object;    
 }
+
+/*
+Function that publishes a version of the digital object and returns the id
+For example, to publish the current version of the Digital Specimen 20.5000.1025/testDS, the doip call should look like:
+{
+  "targetId": "20.5000.1025/testDS",
+  "operationId": "publishVersion",
+  "authentication": { "username": "francisco", "password": "fran1234" }
+}
+#
+#
+*/
+function publishVersion(object, context) {   
+   var doec = getDigitalObjectEventController();
+   var versionId = doec.publishVersion(object.id);
+   return versionId;    
+}    
+
 </code></pre>
 
 

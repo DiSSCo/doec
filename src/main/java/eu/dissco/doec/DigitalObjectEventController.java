@@ -13,8 +13,10 @@ import org.apache.commons.configuration2.Configuration;
 import org.apache.commons.lang3.StringUtils;
 
 import java.time.Instant;
+import java.util.Comparator;
 import java.util.List;
 import java.util.concurrent.*;
+import java.util.stream.Collectors;
 
 /*
     object contains id, type, content, acl, metadata, and payloads
@@ -66,7 +68,7 @@ public class DigitalObjectEventController {
                 DigitalObject digitalObjectFound = digitalObjectRepositoryClient.searchForObject(digitalObject, metaQuery);
                 if (digitalObjectFound != null) {
                     //Generate a revision for the object
-                    String revisionId = this.publishRevision(digitalObjectFound);
+                    String revisionId = ""; //this.publishRevision(digitalObjectFound);
 
                     String eventTypeId = provenanceRepositoryClient.searchOne("type:EventType AND /name:Insert").id;
                     String roleId = digitalObjectRepositoryClient.searchOne("type:Role AND /name:Scientist").id;
@@ -124,7 +126,7 @@ public class DigitalObjectEventController {
                 if (digitalObjectList.size() == 1) {
                     //Generate a revision for the object
                     DigitalObject digitalObjectFound = digitalObjectList.get(0);
-                    String revisionId = this.publishRevision(digitalObjectFound);
+                    String revisionId = ""; //this.publishRevision(digitalObjectFound);
 
                     String eventTypeId = provenanceRepositoryClient.searchOne("type:EventType AND /name:Update").id;
                     String roleId = digitalObjectRepositoryClient.searchOne("type:Role AND /name:Scientist").id;
@@ -284,6 +286,14 @@ public class DigitalObjectEventController {
         }
     }
 
+    /**
+     * Function that returns the published version of the requested object at the desired time
+     * Please note that this is not looking at provenance but only at published versions
+     * @param objectId
+     * @param utcIsoDatetime
+     * @return
+     * @throws DigitalObjectRepositoryException
+     */
     public DigitalObject getVersionOfObjectAtGivenTime(String objectId, String utcIsoDatetime) throws DigitalObjectRepositoryException {
         DigitalObjectRepositoryInfo digitalObjectRepositoryInfo = DigitalObjectRepositoryInfo.getDigitalObjectRepositoryInfoFromConfig(this.getConfig());
         try (DigitalObjectRepositoryClient digitalObjectRepositoryClient = new DigitalObjectRepositoryClient(digitalObjectRepositoryInfo)) {
@@ -292,6 +302,65 @@ public class DigitalObjectEventController {
                 version.id = objectId;
             }
             return version;
+        }
+    }
+
+    /**
+     * Function that returns the requested object at the desired time.
+     * Please note that this is obtained by looking at the provenance records of this object for events Insert, Update and Delete
+     * @param objectId
+     * @param utcIsoDatetime
+     * @return
+     * @throws DigitalObjectRepositoryException
+     */
+    public DigitalObject getObjectAtGivenTime(String objectId, String utcIsoDatetime) throws DigitalObjectRepositoryException {
+        DigitalObjectRepositoryInfo digitalObjectRepositoryInfo =  DigitalObjectRepositoryInfo.getDigitalObjectRepositoryInfoFromConfig(this.getConfig());
+        DigitalObjectRepositoryInfo provenanceRepositoryInfo =  DigitalObjectRepositoryInfo.getProvenanceRepositoryInfoFromConfig(this.getConfig());
+        try(DigitalObjectRepositoryClient digitalObjectRepositoryClient = new DigitalObjectRepositoryClient(digitalObjectRepositoryInfo);
+            DigitalObjectRepositoryClient provenanceRepositoryClient = new DigitalObjectRepositoryClient(provenanceRepositoryInfo)){
+
+            DigitalObject digitalObject = digitalObjectRepositoryClient.retrieve(objectId);
+            if (digitalObject!=null){
+                String query = "type:EventProvenanceRecord " +
+                        "AND (/eventTypeId:EventTypeInsert OR /eventTypeId:EventTypeUpdate OR /eventTypeId:EventTypeDelete) " +
+                        "AND /entityId:" + provenanceRepositoryClient.escapeQueryParamValue(objectId);
+
+                List<DigitalObject> provenanceRecords = provenanceRepositoryClient.searchAll(query);
+                Comparator<DigitalObject> compareByTimestamp = (DigitalObject o1, DigitalObject o2) ->
+                        o1.attributes.getAsJsonObject("content").get("timestamp").getAsString().compareTo( o2.attributes.getAsJsonObject("content").get("timestamp").getAsString() );
+
+                provenanceRecords = provenanceRecords
+                        .stream()
+                        .filter(provenanceRecord ->
+                                provenanceRecord.attributes.getAsJsonObject("content").get("timestamp").getAsString().compareTo(utcIsoDatetime)<=0)
+                        .sorted(compareByTimestamp.reversed())
+                        .collect(Collectors.toList());
+
+                if (provenanceRecords.size()==0 || StringUtils.containsIgnoreCase(provenanceRecords.get(0).attributes.getAsJsonObject("content").get("eventTypeId").getAsString(),"EventTypeDelete")){
+                    digitalObject=null;
+                } else{
+                    digitalObject.setAttribute("content",provenanceRecords.get(0).attributes.getAsJsonObject("content").getAsJsonObject("data").getAsJsonObject("entityContent"));
+
+                    JsonObject metadata = digitalObject.attributes.getAsJsonObject("metadata");
+                    metadata.addProperty("modifiedOn",provenanceRecords.get(0).attributes.getAsJsonObject("metadata").get("modifiedOn").getAsLong());
+                    metadata.addProperty("modifiedBy",provenanceRecords.get(0).attributes.getAsJsonObject("content").get("agentId").getAsString());
+                    digitalObject.setAttribute("metadata",metadata);
+                }
+            }
+            return digitalObject;
+        }
+    }
+
+    /**
+     * Function that generate a revision for the digital object id received as parameter
+     * @param objectId
+     * @return id of the revision generated
+     */
+    public String publishVersion(String objectId) throws DigitalObjectRepositoryException {
+        DigitalObjectRepositoryInfo digitalObjectRepositoryInfo =  DigitalObjectRepositoryInfo.getDigitalObjectRepositoryInfoFromConfig(this.getConfig());
+        try(DigitalObjectRepositoryClient digitalObjectRepositoryClient = new DigitalObjectRepositoryClient(digitalObjectRepositoryInfo);){
+            DigitalObject version = digitalObjectRepositoryClient.publishVersion(objectId);
+            return version.id;
         }
     }
 
