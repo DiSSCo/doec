@@ -6,7 +6,7 @@
 
     <groupId>eu.dissco</groupId>
     <artifactId>doec</artifactId>
-    <version>1.1.0</version>
+    <version>1.2.0</version>
     <description>Digital Object Events Controller</description>
 
     <repositories>
@@ -28,7 +28,7 @@
         <dependency>
             <groupId>net.cnri.cordra</groupId>
             <artifactId>cordra-client</artifactId>
-            <version>2.3.0</version>
+            <version>2.4.0</version>
         </dependency>
 
         <!-- Library to work with JSON objects-->
