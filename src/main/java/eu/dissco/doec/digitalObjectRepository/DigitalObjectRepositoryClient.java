@@ -1,8 +1,17 @@
 package eu.dissco.doec.digitalObjectRepository;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonMappingException;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.github.fge.jsonpatch.JsonPatch;
+import com.github.fge.jsonpatch.JsonPatchException;
+import com.github.fge.jsonpatch.diff.JsonDiff;
 import com.google.common.collect.MapDifference;
+import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
 import eu.dissco.doec.utils.JsonUtils;
 import net.cnri.cordra.api.CordraClient;
 import net.cnri.cordra.api.CordraException;
@@ -13,7 +22,7 @@ import net.dona.doip.InDoipMessage;
 import net.dona.doip.client.*;
 import net.dona.doip.client.transport.DoipClientResponse;
 import org.apache.commons.lang3.StringUtils;
-
+import java.io.IOException;
 import java.io.InputStream;
 import java.time.Instant;
 import java.time.LocalDateTime;
@@ -219,6 +228,74 @@ public class DigitalObjectRepositoryClient implements AutoCloseable {
             throw DigitalObjectRepositoryException.convertCordraException(e);
         }
     }
+    
+    protected class ReverseProvenanceRecordsComparator implements Comparator<DigitalObject>{
+      @Override
+      public int compare(DigitalObject d1, DigitalObject d2) {
+        long d1CreatedOn = d1.attributes.getAsJsonObject("metadata").get("createdOn").getAsLong();
+        long d2CreatedOn = d2.attributes.getAsJsonObject("metadata").get("createdOn").getAsLong();
+          if(d1CreatedOn < d2CreatedOn){
+              return -1;
+          } else {
+              return 1;
+          }
+      }
+    }
+    
+    public String getVersionOfObjectAtGivenTimeViaDiffs(String objectId, Long datetimeEpoch) throws DigitalObjectRepositoryException, IOException, JsonPatchException{
+      System.out.println("getVersionOfObjectAtGivenTimeViaDiffs called with " + String.valueOf(datetimeEpoch));
+      // TO-DO: correctly handle when no matching timestamp found
+      String eventTypeCreateId = this.searchOne("type:EventType AND /name:Insert").id;
+        
+        String query = "type:EventProvenanceRecord AND /entityId:" + this.escapeQueryParamValue(objectId);
+          List<DigitalObject> provenanceRecords = this.searchAll(query);
+          if(provenanceRecords.size() == 0) {
+            return null;
+          } 
+          
+          // sort the records starting with the earliest (should be the create record)
+          provenanceRecords.sort(new ReverseProvenanceRecordsComparator());
+          
+          DigitalObject recordCreate = provenanceRecords.get(0);
+          JsonObject content = recordCreate.attributes.get("content").getAsJsonObject();
+          recordCreate.attributes.getAsJsonObject("metadata").get("createdOn").getAsLong();
+          if(!content.get("eventTypeId").getAsString().equals(eventTypeCreateId)) {
+            return null;
+          }
+          JsonObject contentOriginalObject = content.getAsJsonObject("data").getAsJsonObject("entityContent");
+          String timestampCreatedStr = recordCreate.attributes.getAsJsonObject("content").get("timestamp").getAsString();
+          Long timestampCreated;
+          if (StringUtils.isNotBlank(timestampCreatedStr)){
+            timestampCreated = Instant.parse(timestampCreatedStr).toEpochMilli();
+          } else{
+            timestampCreated = Instant.now().toEpochMilli();
+          }
+          if(datetimeEpoch.equals(timestampCreated)) {
+            return contentOriginalObject.toString();
+          }
+          ObjectMapper mapper = new ObjectMapper();
+          JsonNode originalContent = mapper.readTree(contentOriginalObject.toString());
+          for(int i=1; i<provenanceRecords.size(); i++) {
+            System.out.println("iterating records " + String.valueOf(i));
+            DigitalObject record = provenanceRecords.get(i);
+            JsonArray changes = record.attributes.get("content").getAsJsonObject().get("data").getAsJsonObject().get("changes").getAsJsonArray();
+            JsonNode patchNode = mapper.readTree(changes.toString());
+            final JsonPatch patch = JsonPatch.fromJson(patchNode);
+            originalContent = patch.apply(originalContent);
+            String timestamp = record.attributes.getAsJsonObject("content").get("timestamp").getAsString();
+            Long timestampCurrentRecord;
+            if (StringUtils.isNotBlank(timestamp)){
+              timestampCurrentRecord = Instant.parse(timestamp).toEpochMilli();
+            } else{
+              timestampCurrentRecord = Instant.now().toEpochMilli();
+            }
+            if(datetimeEpoch.equals(timestampCurrentRecord)) {
+              break;
+            }
+          }
+          return originalContent.toString();
+      }
+
 
     /**
      * Function that creates a version of the digital object id received as parameter
@@ -298,6 +375,18 @@ public class DigitalObjectRepositoryClient implements AutoCloseable {
         if (StringUtils.isNotBlank(rightDsId)) rightDsContent.addProperty("id",rightDsId);
         return comparisonResult;
     }
+    
+    public JsonArray diffDigitalObjectsContent(DigitalObject oldDO, DigitalObject newDO) throws IOException {
+      JsonObject oldDOContent = oldDO.attributes.getAsJsonObject("content");
+      JsonObject newDOContent = newDO.attributes.getAsJsonObject("content");
+      
+      ObjectMapper mapper = new ObjectMapper();
+      JsonNode source = mapper.readTree(newDOContent.toString());
+      JsonNode target = mapper.readTree(oldDOContent.toString());
+      JsonNode diffPatch = JsonDiff.asJson(source, target);
+      JsonArray patchesArray = (JsonArray) JsonParser.parseString(diffPatch.toString());
+      return patchesArray;
+  }
 
     public DigitalObject searchForObject(DigitalObject digitalObject, String metaQuery) throws DigitalObjectRepositoryException {
         DigitalObject dobj=null;

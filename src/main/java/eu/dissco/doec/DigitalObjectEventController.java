@@ -1,7 +1,10 @@
 package eu.dissco.doec;
 
+import com.github.fge.jsonpatch.JsonPatchException;
 import com.google.common.collect.MapDifference;
 import com.google.gson.Gson;
+import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import eu.dissco.doec.digitalObjectRepository.DigitalObjectRepositoryClient;
 import eu.dissco.doec.digitalObjectRepository.DigitalObjectRepositoryException;
@@ -11,7 +14,7 @@ import eu.dissco.doec.utils.JsonUtils;
 import net.dona.doip.client.DigitalObject;
 import org.apache.commons.configuration2.Configuration;
 import org.apache.commons.lang3.StringUtils;
-
+import java.io.IOException;
 import java.time.Instant;
 import java.util.Comparator;
 import java.util.List;
@@ -60,39 +63,37 @@ public class DigitalObjectEventController {
             try(DigitalObjectRepositoryClient digitalObjectRepositoryClient = new DigitalObjectRepositoryClient(digitalObjectRepositoryInfo);
                 DigitalObjectRepositoryClient provenanceRepositoryClient = new DigitalObjectRepositoryClient(provenanceRepositoryInfo)){
 
-                //Wait until object is stored in repository as the processCreateEvent is triggered on beforeSchemaValidation,
-                //so it might not have been created in the repository yet
-                TimeUnit.SECONDS.sleep(3);
-
-                String metaQuery = "metadata/createdBy:" + digitalObjectRepositoryClient.escapeQueryParamValue(context.get("userId").getAsString());
-                DigitalObject digitalObjectFound = digitalObjectRepositoryClient.searchForObject(digitalObject, metaQuery);
-                if (digitalObjectFound != null) {
+                //Do not wait anymore, because it should be triggered by afterCreateOrUpdate
+                // TimeUnit.SECONDS.sleep(3);
                     //Generate a revision for the object
                     String revisionId = ""; //this.publishRevision(digitalObjectFound);
 
                     String eventTypeId = provenanceRepositoryClient.searchOne("type:EventType AND /name:Insert").id;
-                    String roleId = digitalObjectRepositoryClient.searchOne("type:Role AND /name:Scientist").id;
-
+                    // String roleId = digitalObjectRepositoryClient.searchOne("type:Role AND /name:Scientist").id;
+                    
                     //Save provenance record of the event
                     DigitalObject provenanceRecord = new DigitalObject();
                     provenanceRecord.type = "EventProvenanceRecord";
                     JsonObject provenanceContent = new JsonObject();
                     provenanceContent.addProperty("eventTypeId", eventTypeId);
-                    provenanceContent.addProperty("entityId", digitalObjectFound.id);
-                    provenanceContent.addProperty("entityType", digitalObjectFound.type);
+                    provenanceContent.addProperty("entityId", digitalObject.id);
+                    provenanceContent.addProperty("entityType", digitalObject.type);
                     provenanceContent.addProperty("agentId", context.get("userId").getAsString());
-                    provenanceContent.addProperty("roleId", roleId);
-                    provenanceContent.addProperty("timestamp",  Instant.ofEpochMilli(digitalObjectFound.attributes.getAsJsonObject("metadata").get("createdOn").getAsLong()).toString());
+                    // provenanceContent.addProperty("roleId", roleId);
+                    Gson gson = new Gson();
+                    JsonObject object = gson.fromJson(strJsonObject, JsonObject.class);
+                    JsonObject metadata = object.getAsJsonObject("metadata");
+                    provenanceContent.addProperty("timestamp",  Instant.ofEpochMilli(metadata.get("modifiedOn").getAsLong()).toString());
                     provenanceContent.addProperty("description", "Digital object created");
 
                     JsonObject extraAttributes = new JsonObject();
                     extraAttributes.addProperty("revisionId", revisionId);
-                    extraAttributes.add("entityContent", digitalObjectFound.attributes.getAsJsonObject("content"));
+                    extraAttributes.add("entityContent", digitalObject.attributes.getAsJsonObject("content"));
                     provenanceContent.add("data",extraAttributes);
 
                     provenanceRecord.setAttribute("content", provenanceContent);
                     DigitalObject provRecordSaved = provenanceRepositoryClient.create(provenanceRecord);
-                }
+                
             } catch (Exception e){
                 e.printStackTrace();
             }
@@ -102,6 +103,7 @@ public class DigitalObjectEventController {
     }
 
     public void processUpdateEvent(String strOriginalObject, String strModifiedObject, String strJsonContext) {
+      
         DigitalObject originalDigitalObject = this.getDigitalObjectFromString(strOriginalObject);
         DigitalObject modifiedDigitalObject = this.getDigitalObjectFromString(strModifiedObject);
         JsonObject context = this.getJsonObjectFromString(strJsonContext);
@@ -112,10 +114,9 @@ public class DigitalObjectEventController {
             try(DigitalObjectRepositoryClient digitalObjectRepositoryClient = new DigitalObjectRepositoryClient(digitalObjectRepositoryInfo);
                 DigitalObjectRepositoryClient provenanceRepositoryClient = new DigitalObjectRepositoryClient(provenanceRepositoryInfo)){
 
-                //Wait until object is stored in repository as the processUpdateEvent is triggered on beforeSchemaValidation,
-                //so it might not have been updated in the repository yet
-                TimeUnit.SECONDS.sleep(3);
-                Long endEpoch = Instant.now().toEpochMilli();
+              // Do not wait anymore, because it should be triggered by afterCreateOrUpdate
+              // TimeUnit.SECONDS.sleep(3);
+               /* Long endEpoch = Instant.now().toEpochMilli();
                 Long startEpoch = endEpoch - (5*1000);
 
                 String query = "type:"+ modifiedDigitalObject.type +
@@ -124,37 +125,42 @@ public class DigitalObjectEventController {
                         " AND metadata/modifiedOn:[" + Long.toString(startEpoch) + " TO " + Long.toString(endEpoch) + "]";
                 List<DigitalObject> digitalObjectList = digitalObjectRepositoryClient.searchAll(query);
                 if (digitalObjectList.size() == 1) {
+                */
                     //Generate a revision for the object
-                    DigitalObject digitalObjectFound = digitalObjectList.get(0);
+                    // DigitalObject digitalObjectFound = digitalObjectList.get(0);
                     String revisionId = ""; //this.publishRevision(digitalObjectFound);
 
                     String eventTypeId = provenanceRepositoryClient.searchOne("type:EventType AND /name:Update").id;
-                    String roleId = digitalObjectRepositoryClient.searchOne("type:Role AND /name:Scientist").id;
+                    //String roleId = digitalObjectRepositoryClient.searchOne("type:Role AND /name:Scientist").id;
 
                     //Save provenance record of the event
-                    MapDifference<String, Object> mapDifference = digitalObjectRepositoryClient.compareContentDigitalObjects(digitalObjectFound,originalDigitalObject);
-                    JsonObject comparisonResult = (JsonObject)JsonUtils.convertObjectToJsonElement(mapDifference);
-                    comparisonResult.remove("onBoth");
+                    JsonArray comparisonResult = digitalObjectRepositoryClient.diffDigitalObjectsContent(modifiedDigitalObject,originalDigitalObject);
+                    // MapDifference<String, Object> mapDifference = digitalObjectRepositoryClient.compareContentDigitalObjects(digitalObjectFound,originalDigitalObject);
+                    // JsonObject comparisonResult = (JsonObject)JsonUtils.convertObjectToJsonElement(mapDifference);
+                    // comparisonResult.remove("onBoth");
+                    
                     JsonObject extraAttributes = new JsonObject();
-                    extraAttributes.add("changes",comparisonResult);
+                    extraAttributes.add("changes", comparisonResult);
                     extraAttributes.addProperty("revisionId", revisionId);
-                    extraAttributes.add("entityContent", digitalObjectFound.attributes.getAsJsonObject("content"));
 
                     DigitalObject provenanceRecord = new DigitalObject();
                     provenanceRecord.type = "EventProvenanceRecord";
                     JsonObject provenanceContent = new JsonObject();
                     provenanceContent.addProperty("eventTypeId",eventTypeId);
-                    provenanceContent.addProperty("entityId", digitalObjectFound.id);
-                    provenanceContent.addProperty("entityType", digitalObjectFound.type);
+                    provenanceContent.addProperty("entityId", modifiedDigitalObject.id);
+                    provenanceContent.addProperty("entityType", modifiedDigitalObject.type);
                     provenanceContent.addProperty("agentId", context.get("userId").getAsString());
-                    provenanceContent.addProperty("roleId", roleId);
-                    provenanceContent.addProperty("timestamp",  Instant.ofEpochMilli(digitalObjectFound.attributes.getAsJsonObject("metadata").get("modifiedOn").getAsLong()).toString());
+                    // provenanceContent.addProperty("roleId", roleId);
+                    Gson gson = new Gson();
+                    JsonObject object = gson.fromJson(strModifiedObject, JsonObject.class);
+                    JsonObject metadata = object.getAsJsonObject("metadata");
+                    provenanceContent.addProperty("timestamp",  Instant.ofEpochMilli(metadata.get("modifiedOn").getAsLong()).toString());
                     provenanceContent.addProperty("description","Digital object updated");
                     provenanceContent.add("data",extraAttributes);
 
                     provenanceRecord.setAttribute("content", provenanceContent);
                     DigitalObject provRecordSaved = provenanceRepositoryClient.create(provenanceRecord);
-                }
+                //}
             } catch (Exception e){
                 e.printStackTrace();
             }
@@ -173,15 +179,16 @@ public class DigitalObjectEventController {
                 DigitalObjectRepositoryClient provenanceRepositoryClient = new DigitalObjectRepositoryClient(provenanceRepositoryInfo)){
 
                 Long deleteTimestamp = Instant.now().toEpochMilli();
-
+                
+                /*
                 //Wait until object is deleted in repository as the processDeleteEvent is triggered on beforeDelete,
                 //so it might not have been deleted in the repository yet
                 TimeUnit.SECONDS.sleep(3);
 
                 DigitalObject digitalObjectFound = digitalObjectRepositoryClient.retrieve(digitalObject.id);
-                if (digitalObjectFound == null) {
+                if (digitalObjectFound == null) {*/
                     String eventTypeId = provenanceRepositoryClient.searchOne("type:EventType AND /name:Delete").id;
-                    String roleId = digitalObjectRepositoryClient.searchOne("type:Role AND /name:Scientist").id;
+                    // String roleId = digitalObjectRepositoryClient.searchOne("type:Role AND /name:Scientist").id;
 
 
                     DigitalObject provenanceRecord = new DigitalObject();
@@ -191,13 +198,13 @@ public class DigitalObjectEventController {
                     provenanceContent.addProperty("entityId",context.get("objectId").getAsString());
                     provenanceContent.addProperty("entityType", digitalObject.type);
                     provenanceContent.addProperty("agentId",context.get("userId").getAsString());
-                    provenanceContent.addProperty("roleId",roleId);
+                    // provenanceContent.addProperty("roleId",roleId);
                     provenanceContent.addProperty("timestamp",  Instant.ofEpochMilli(deleteTimestamp).toString());
                     provenanceContent.addProperty("description","Digital object deleted");
 
                     provenanceRecord.setAttribute("content", provenanceContent);
                     DigitalObject provRecordSaved = provenanceRepositoryClient.create(provenanceRecord);
-                }
+               // }
             } catch (Exception e){
                 e.printStackTrace();
             }
@@ -304,6 +311,27 @@ public class DigitalObjectEventController {
             return version;
         }
     }
+    
+    public String getVersionOfObjectAtGivenTimeByPatches(String objectId, String utcIsoDatetime) throws DigitalObjectRepositoryException {
+      System.out.println("getVersionOfObjectAtGivenTimeByPatches callled with " + utcIsoDatetime );
+      // TO-DO: correctly handle when no timestamp parameter provided/ not correct format
+      // handling when history is broken and patch cannot be applied
+      Long timestamp;
+      if (StringUtils.isNotBlank(utcIsoDatetime)){
+          timestamp = Instant.parse(utcIsoDatetime).toEpochMilli();
+      } else{
+          timestamp = Instant.now().toEpochMilli();
+      }
+      DigitalObjectRepositoryInfo provenanceRepositoryInfo = DigitalObjectRepositoryInfo.getProvenanceRepositoryInfoFromConfig(this.getConfig());
+      try (DigitalObjectRepositoryClient provenanceRepositoryClient = new DigitalObjectRepositoryClient(provenanceRepositoryInfo)) {
+        return provenanceRepositoryClient.getVersionOfObjectAtGivenTimeViaDiffs(objectId, timestamp);
+      } catch (IOException | JsonPatchException e) {
+        // TODO Auto-generated catch block
+        System.out.println("getVersionOfObjectAtGivenTimeByPatches exception!!!!");
+        e.printStackTrace();
+        return null;
+      }
+  }
 
     /**
      * Function that returns the requested object at the desired time.
@@ -363,12 +391,26 @@ public class DigitalObjectEventController {
             return version.id;
         }
     }
+    
+    class ProvenanceRecordsComparator implements Comparator<DigitalObject>{
+      @Override
+      public int compare(DigitalObject d1, DigitalObject d2) {
+        long d1CreatedOn = d1.attributes.getAsJsonObject("metadata").get("createdOn").getAsLong();
+        long d2CreatedOn = d2.attributes.getAsJsonObject("metadata").get("createdOn").getAsLong();
+          if(d1CreatedOn < d2CreatedOn){
+              return 1;
+          } else {
+              return -1;
+          }
+      }
+    }
 
     public String getProvenanceRecordsForObject(String objectId) throws DigitalObjectRepositoryException {
         DigitalObjectRepositoryInfo provenanceRepositoryInfo =  DigitalObjectRepositoryInfo.getProvenanceRepositoryInfoFromConfig(this.getConfig());
         try(DigitalObjectRepositoryClient provenanceRepositoryClient = new DigitalObjectRepositoryClient(provenanceRepositoryInfo)){
             String query = "type:EventProvenanceRecord AND /entityId:" + provenanceRepositoryClient.escapeQueryParamValue(objectId);
             List<DigitalObject> provenanceRecords = provenanceRepositoryClient.searchAll(query);
+            provenanceRecords.sort(new ProvenanceRecordsComparator());
             return JsonUtils.serializeObject(provenanceRecords.stream().toArray(DigitalObject[]::new));
         }
     }
